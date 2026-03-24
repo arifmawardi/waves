@@ -261,9 +261,13 @@
                 ctx.globalAlpha = 1.0; 
             }
 
-            // Animation loop
-            function animate() {
-                time += 1;
+            // Animation loop using timestamp to maintain constant speed regardless of framerate
+            function animate(timestamp) {
+                // 'timestamp' is the exact time in ms.
+                // Multiply by ~0.06 to mimic the original speed (which incremented by 1 per ~16.6ms frame)
+                if (!timestamp) timestamp = performance.now();
+                time = timestamp * 0.06;
+                
                 drawWave();
                 requestAnimationFrame(animate);
             }
@@ -271,7 +275,9 @@
             // Init
             resizeCanvas(); 
             updateReadouts();
-            animate();
+            
+            // Pass the initial function reference so timestamp is provided by the browser
+            requestAnimationFrame(animate);
 
             window.addEventListener('resize', resizeCanvas); 
         };
