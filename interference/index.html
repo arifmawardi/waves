@@ -1,1 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wave Interference</title>
+    <!-- Load Tailwind CSS --><script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Use Inter font */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom styles for range sliders */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 8px;
+            border-radius: 5px;
+            background: #4a5568; /* gray-700 */
+            outline: none;
+            opacity: 0.7;
+            transition: opacity .2s;
+        }
+        input[type="range"]:hover {
+            opacity: 1;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #38b2ac; /* teal-500 */
+            cursor: pointer;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #38b2ac; /* teal-500 */
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 flex flex-col items-center justify-center min-h-screen p-4">
 
+    <h1 class="text-3xl md:text-4xl font-bold mb-6 text-teal-300">Wave Interference</h1>
+
+    <!-- Canvas for the wave visualization --><canvas id="waveCanvas" class="bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl h-64 md:h-96 mb-6"></canvas>
+
+    <!-- Controls for wave parameters --><div class="w-full max-w-2xl bg-gray-800 p-6 rounded-lg shadow-xl space-y-4">
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Left Column: Sliders --><div class="space-y-4">
+                 <!-- Phase Slider --><div class="grid grid-cols-4 items-center gap-4">
+                    <label for="phase" class="text-lg font-medium text-teal-400">Phase Difference</label>
+                    <input type="range" id="phase" min="0" max="6.28318" value="1.25663706144" step="0.314159" class="col-span-2">
+                    
+                </div>
+            </div>
+
+            <!-- Right Column: End Condition & Readouts --><div class="space-y-4">
+                <!-- Readout: Propagation Speed (REMOVED) -->
+
+                <!-- Readout: Wavelength (REMOVED) -->
+
+                <!-- Readout: Phase --><div class="grid grid-cols-3 items-center gap-4">
+                    <span class="text-lg font-medium text-teal-400">Phase Difference</span>
+                    <span id="phaseReadout" class="col-span-2 text-lg text-gray-100">0.00 π rad</span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        window.onload = function() {
+            const canvas = document.getElementById('waveCanvas');
+            const ctx = canvas.getContext('2d');
+
+            // Get control elements
+            const phaseSlider = document.getElementById('phase');
+
+            // Get readout elements
+            const phaseReadout = document.getElementById('phaseReadout');
+
+            // --- Corrected Physics Parameters ---
+            // Propagation speed is constant for the medium (the string)
+            const propSpeed = 2; // (pixels/frame) - Tuned for good visual range
+            
+            // Wave parameters controlled by user
+            let amplitude; // Will be set dynamically in resizeCanvas()
+            const frequency = 0.035; // Fixed frequency (omega)
+            let phase = parseFloat(phaseSlider.value); // Phase difference in radians
+            
+            // Calculated wave parameter
+            let k = frequency / propSpeed; // k (wavenumber) = omega / v
+            
+            let time = 0; // This is the 't' in sin(kx - wt), incremented each frame
+
+            // --- Helper function to calculate Y position of a single wave ---
+            // This function calculates the wave's displacement at (x, t)
+            function calculateY(x, t, phaseOffset) {
+                // y(x,t) = A * sin(k*x - omega*t + phase)
+                return amplitude * Math.sin(k * x - frequency * t + phaseOffset);
+            }
+
+
+            // Update readouts
+            function updateReadouts() {
+                let phaseInPi = phase / Math.PI;
+                phaseReadout.textContent = `${phaseInPi.toFixed(2)} π rad`;
+            }
+
+            // Update parameters from controls
+            phaseSlider.addEventListener('input', (e) => {
+                phase = parseFloat(e.target.value);
+                updateReadouts(); // Update phase degree readout
+            });
+            
+            // Function to resize the canvas
+            function resizeCanvas() {
+                // Set canvas size to its CSS-defined size
+                canvas.width = canvas.clientWidth;
+                canvas.height = canvas.clientHeight;
+                
+                // Dynamically calculate amplitude based on canvas height to prevent clipping
+                const yCenter = canvas.height / 2;
+                const padding = 20; // 20 pixels of padding from the top/bottom edge for labels/beads
+                
+                // Max resultant amplitude is 2 * amplitude. We want 2 * amplitude <= yCenter - padding.
+                amplitude = (yCenter - padding) / 2;
+                
+                // Ensure amplitude is a reasonable value if canvas is tiny
+                if (amplitude < 10) amplitude = 10;
+            }
+
+            // Function to draw the waves
+            function drawWave() {
+                // Clear the canvas
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                const yCenter = canvas.height / 2;
+
+                // --- Draw Equilibrium Line ---
+                ctx.beginPath();
+                ctx.moveTo(0, yCenter);
+                ctx.lineTo(canvas.width, yCenter);
+                ctx.strokeStyle = '#9ca3af'; // gray-400
+                ctx.lineWidth = 1;
+                ctx.setLineDash([5, 5]); // Dashed line
+                ctx.stroke();
+                ctx.setLineDash([]); // Reset line dash
+                // --- End Equilibrium Line ---
+
+                // --- Draw Amplitude Lines ---
+                const A = amplitude; // This will now be the dynamic amplitude
+                const A_prime = 2 * A; // This will also be dynamic
+                const x_label_pos = 10; // X position for the labels "A" and "2A"
+                const line_end_x = canvas.width; // X position for the end of the amplitude lines
+
+                ctx.globalAlpha = 0.8; // Make lines slightly transparent
+                ctx.setLineDash([2, 2]);
+                ctx.font = '14px Inter';
+                ctx.textAlign = 'left';
+
+                // 1. Draw Lines for A (Component Amplitude) - Top and Bottom
+                ctx.beginPath();
+                ctx.moveTo(0, yCenter - A); // Top line
+                ctx.lineTo(line_end_x, yCenter - A);
+                ctx.moveTo(0, yCenter + A); // Bottom line
+                ctx.lineTo(line_end_x, yCenter + A);
+                ctx.strokeStyle = '#3b82f6'; // Blue, like wave 1
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                // Add label "A"
+                ctx.fillStyle = '#3b82f6';
+                ctx.fillText('A', x_label_pos, yCenter - A - 5); 
+                ctx.fillText('-A', x_label_pos, yCenter + A + 15);
+
+
+                // 2. Draw Lines for A' (Resultant Amplitude) - Top and Bottom
+                ctx.beginPath();
+                ctx.strokeStyle = '#f5f5f5'; // White, like sum wave
+                ctx.lineWidth = 2;
+                
+                // Only draw if A_prime is noticeable (not zero)
+                if (A_prime > 1) {
+                    ctx.moveTo(0, yCenter - A_prime); // Top line
+                    ctx.lineTo(line_end_x, yCenter - A_prime);
+                    ctx.moveTo(0, yCenter + A_prime); // Bottom line
+                    ctx.lineTo(line_end_x, yCenter + A_prime);
+                } else {
+                    // if zero, just draw a small tick at the equilibrium
+                    ctx.moveTo(0, yCenter);
+                    ctx.lineTo(line_end_x, yCenter);
+                }
+                ctx.stroke();
+                
+                // Add label "2A" (representing max A')
+                ctx.fillStyle = '#f5f5f5';
+                // Adjust label position to avoid overlap when A_prime is small
+                ctx.fillText("2A", x_label_pos, yCenter - A_prime - 5); // Simplified label position
+                if (A_prime > 1) {
+                     ctx.fillText("-2A", x_label_pos, yCenter + A_prime + 15);
+                }
+
+
+                ctx.setLineDash([]); // Reset line dash
+                ctx.globalAlpha = 1.0; // Reset alpha
+                // --- End Amplitude Lines ---
+
+
+                // Create Path2D objects to draw the waves efficiently
+                const path1 = new Path2D(); // Wave 1 (Blue)
+                const path2 = new Path2D(); // Wave 2 (Red)
+                const pathSum = new Path2D(); // Sum Wave (White)
+
+                // Calculate starting points
+                const y1_start = calculateY(0, time, 0);
+                const y2_start = calculateY(0, time, phase);
+                const ySum_start = y1_start + y2_start; // Sum at x=0
+
+                path1.moveTo(0, yCenter + y1_start);
+                path2.moveTo(0, yCenter + y2_start);
+                pathSum.moveTo(0, yCenter + ySum_start);
+
+                const beadPositions1 = [];
+                const beadPositions2 = [];
+                const beadPositionsSum = []; // Array for sum wave beads
+                const segmentLength = 15;
+
+                // Loop across the canvas to calculate all points
+                for (let x = 1; x < canvas.width; x++) {
+                    const y1 = calculateY(x, time, 0);      // Wave 1
+                    const y2 = calculateY(x, time, phase);  // Wave 2 (with phase shift)
+                    const ySum = y1 + y2;                   // Sum wave
+
+                    path1.lineTo(x, yCenter + y1);
+                    path2.lineTo(x, yCenter + y2);
+                    pathSum.lineTo(x, yCenter + ySum);      // Add point to sum path
+
+                    // Store bead positions (every 'segmentLength' pixels)
+                    if (x % segmentLength === 0 && x > 0) {
+                        beadPositions1.push({ x: x, y: yCenter + y1 });   // Add bead for wave 1
+                        beadPositions2.push({ x: x, y: yCenter + y2 });   // Add bead for wave 2
+                        beadPositionsSum.push({ x: x, y: yCenter + ySum }); // Add bead for sum wave
+                    }
+                }
+
+                // --- 1. Draw Wave 1 (Blue) ---
+                ctx.strokeStyle = '#3b82f6'; // blue-500
+                ctx.lineWidth = 2; // Made thinner
+                ctx.globalAlpha = 0.6; // Make component waves transparent
+                ctx.shadowBlur = 0;
+                ctx.stroke(path1);
+
+                // --- 2. Draw Wave 2 (Red) ---
+                ctx.strokeStyle = '#ef4444'; // red-500
+                ctx.lineWidth = 2;
+                // globalAlpha is already 0.6
+                ctx.stroke(path2);
+
+                // --- 3. Draw Sum Wave (White) ---
+                ctx.strokeStyle = '#f5f5f5'; // neutral-100 (bright white)
+                ctx.lineWidth = 5; // Thicker line for emphasis
+                ctx.globalAlpha = 1.0; // Fully opaque
+                ctx.shadowColor = '#f5f5f5'; // White glow
+                ctx.shadowBlur = 8;
+                ctx.stroke(pathSum);
+                ctx.shadowBlur = 0; // Reset shadow for beads
+
+                // --- 4. Draw Beads on Wave 1 (Blue) ---
+                ctx.fillStyle = '#3b82f6'; // blue-500
+                ctx.globalAlpha = 0.6; // Match wave transparency
+                
+                // Draw the first bead (at x=0)
+                ctx.beginPath();
+                ctx.arc(0, yCenter + y1_start, 4, 0, Math.PI * 2); // Radius 4
+                ctx.fill();
+
+                // Draw the rest of the beads
+                for (const pos of beadPositions1) {
+                    ctx.beginPath();
+                    ctx.arc(pos.x, pos.y, 4, 0, Math.PI * 2); // Radius 4
+                    ctx.fill();
+                }
+
+                // --- 5. Draw Beads on Wave 2 (Red) ---
+                ctx.fillStyle = '#ef4444'; // red-500
+                // Alpha is already 0.6 from above
+                
+                // Draw the first bead (at x=0)
+                ctx.beginPath();
+                ctx.arc(0, yCenter + y2_start, 4, 0, Math.PI * 2); // Radius 4
+                ctx.fill();
+
+                // Draw the rest of the beads
+                for (const pos of beadPositions2) {
+                    ctx.beginPath();
+                    ctx.arc(pos.x, pos.y, 4, 0, Math.PI * 2); // Radius 4
+                    ctx.fill();
+                }
+                
+                // --- 6. Draw Beads on Sum Wave (White) ---
+                ctx.fillStyle = '#f5f5f5'; // white
+                ctx.globalAlpha = 1.0; // Fully opaque
+                
+                // Draw the first bead (at x=0)
+                ctx.beginPath();
+                ctx.arc(0, yCenter + ySum_start, 5, 0, Math.PI * 2); // Radius 5 (larger)
+                ctx.fill();
+
+                // Draw the rest of the beads
+                for (const pos of beadPositionsSum) {
+                    ctx.beginPath();
+                    ctx.arc(pos.x, pos.y, 5, 0, Math.PI * 2); // Radius 5
+                    ctx.fill();
+                }
+                
+                ctx.globalAlpha = 1.0; // Reset alpha
+            }
+
+            // Animation loop
+            function animate() {
+                // Update time to make the wave move
+                time += 1;
+
+                // Draw the wave
+                drawWave();
+
+                // Request the next animation frame
+                requestAnimationFrame(animate);
+            }
+
+            // Initial setup
+            resizeCanvas(); // This now sets the dynamic amplitude
+            updateReadouts();
+            
+            // Start the animation
+            animate();
+
+            // Resize canvas on window resize
+            window.addEventListener('resize', resizeCanvas); // Also updates amplitude on resize
+        };
+    </script>
+</body>
+</html>
