@@ -1,1 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Standing Wave Simulator</title> <!-- Changed title -->
+    <!-- Load Tailwind CSS --><script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Use Inter font */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom styles for range sliders */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 8px;
+            border-radius: 5px;
+            background: #4a5568; /* gray-700 */
+            outline: none;
+            opacity: 0.7;
+            transition: opacity .2s;
+        }
+        input[type="range"]:hover {
+            opacity: 1;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #38b2ac; /* teal-500 */
+            cursor: pointer;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #38b2ac; /* teal-500 */
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 flex flex-col items-center justify-center min-h-screen p-4">
 
+    <h1 class="text-3xl md:text-4xl font-bold mb-6 text-teal-300">Standing Wave Simulator</h1>
+
+    <!-- Canvas for the wave visualization --><canvas id="waveCanvas" class="bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl h-64 md:h-96 mb-6"></canvas>
+
+    <!-- Controls for wave parameters --><div class="w-full max-w-2xl bg-gray-800 p-6 rounded-lg shadow-xl space-y-4">
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Left Column: Sliders --><div class="space-y-4 md:col-span-2">
+                 <!-- Removed Phase Slider -->
+                 <p class="text-gray-400 text-center mb-4">This simulation shows two waves (red and blue) moving in opposite directions to create a standing wave (white).</p>
+                 <!-- ADDED BUTTON -->
+                 <div class="flex justify-center">
+                     <button id="pauseButton" class="bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-6 rounded-lg transition-colors duration-200 w-32">
+                         Pause
+                     </button>
+                 </div>
+            </div>
+
+            <!-- Right Column: End Condition & Readouts --><div class="space-y-4">
+                <!-- Removed Readouts -->
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        window.onload = function() {
+            const canvas = document.getElementById('waveCanvas');
+            const ctx = canvas.getContext('2d');
+
+            // Get control elements
+            // const phaseSlider = document.getElementById('phase'); // Removed
+
+            // Get readout elements
+            // const speedReadout = document.getElementById('speedReadout'); // Removed
+            // const wavelengthReadout = document.getElementById('wavelengthReadout'); // Removed
+            // const phaseReadout = document.getElementById('phaseReadout'); // Removed
+
+            // --- Corrected Physics Parameters ---
+            // Propagation speed is constant for the medium (the string)
+            const propSpeed = 2; // (pixels/frame) - Reduced speed
+            
+            // Wave parameters controlled by user
+            let amplitude = 80; // Fixed amplitude changed to let, will be updated dynamically
+            const frequency = 0.05; // Fixed frequency (omega)
+            let phase = 0; // Phase difference in radians, hardcoded to 0
+            
+            // Calculated wave parameter
+            let k = frequency / propSpeed; // k (wavenumber) = omega / v
+            
+            let time = 0; // This is the 't' in sin(kx - wt), incremented each frame
+
+            // --- ADDED CODE: Pause state ---
+            let isPaused = false;
+            // --- END ADDED CODE ---
+
+            // --- MODIFIED CODE START ---
+
+            // --- Helper functions to calculate Y position ---
+            
+            // y(x,t) = A * sin(k*x - omega*t + phase) -> Propagating right
+            function calculateY_right(x, t, phaseOffset) {
+                return amplitude * Math.sin(k * x - frequency * t + phaseOffset);
+            }
+
+            // y(x,t) = A * sin(k*x + omega*t + phase) -> Propagating left
+            function calculateY_left(x, t, phaseOffset) {
+                return amplitude * Math.sin(k * x + frequency * t + phaseOffset);
+            }
+            
+            // --- MODIFIED CODE END ---
+
+
+            // Update readouts
+            /* // Removed updateReadouts function
+            function updateReadouts() {
+                let wavelength = (2 * Math.PI) / k;
+                speedReadout.textContent = `${propSpeed} px/frame`;
+                wavelengthReadout.textContent = `${wavelength.toFixed(1)} px`;
+                let phaseInPi = phase / Math.PI;
+                phaseReadout.textContent = `${phaseInPi.toFixed(2)} $\pi$ rad`;
+            }
+            */
+
+            // Update parameters from controls
+            /* // Removed phase slider event listener
+            phaseSlider.addEventListener('input', (e) => {
+                phase = parseFloat(e.target.value);
+                updateReadouts(); // Update phase degree readout
+            });
+            */
+            
+            // Function to resize the canvas
+            function resizeCanvas() {
+                // Set canvas size to its CSS-defined size
+                canvas.width = canvas.clientWidth;
+                canvas.height = canvas.clientHeight;
+                
+                // --- MODIFIED CODE: Dynamically calculate amplitude ---
+                // Set component amplitude to 20% of canvas height.
+                // The standing wave's max amplitude is 2*A (40% of height).
+                // This ensures the wave (from yCenter +/- 2*A) fits.
+                amplitude = canvas.height * 0.2; 
+                // --- END MODIFIED CODE ---
+            }
+
+            // Function to draw the waves
+            function drawWave() {
+                // Clear the canvas
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                const yCenter = canvas.height / 2;
+
+                // --- ADDED CODE: Draw equilibrium line ---
+                ctx.beginPath();
+                ctx.moveTo(0, yCenter);
+                ctx.lineTo(canvas.width, yCenter);
+                ctx.strokeStyle = '#6b7280'; // gray-500
+                ctx.lineWidth = 1;
+                ctx.setLineDash([5, 5]); // Make it dashed
+                ctx.stroke();
+                ctx.setLineDash([]); // Reset line dash
+                // --- END ADDED CODE ---
+
+                // --- ADDED CODE: Draw nodes ---
+                const nodeSpacing = Math.PI / k;
+                ctx.fillStyle = '#fde047'; // yellow-300
+                ctx.globalAlpha = 0.9; // Slightly transparent
+                
+                // --- NEW CODE for labels ---
+                ctx.strokeStyle = '#fde047'; // yellow-300 for arrow
+                ctx.lineWidth = 1.5;
+                ctx.font = '14px Inter';
+                ctx.textAlign = 'center';
+                // let labeledNode = false; // Flag to only label one node -- REMOVED
+                // --- END NEW CODE ---
+                
+                for (let x_node = 0; x_node < canvas.width; x_node += nodeSpacing) {
+                    ctx.beginPath();
+                    // Draw a small circle marker for the node
+                    ctx.arc(x_node, yCenter, 6, 0, Math.PI * 2); // Radius 6
+                    ctx.fill();
+
+                    // --- MODIFIED CODE: Draw arrow and label for all nodes (except x=0) ---
+                    if (x_node > 0) { // Check to avoid crowding the y-axis
+                        ctx.beginPath();
+                        ctx.moveTo(x_node, yCenter - 15); // Start of arrow above node
+                        ctx.lineTo(x_node, yCenter - 40); // Line of arrow
+                        // Arrowhead
+                        ctx.lineTo(x_node - 4, yCenter - 32);
+                        ctx.moveTo(x_node, yCenter - 40);
+                        ctx.lineTo(x_node + 4, yCenter - 32);
+                        ctx.stroke();
+
+                        // Draw text
+                        ctx.fillStyle = '#fde047'; // Ensure text is yellow
+                        ctx.fillText('Node', x_node, yCenter - 50);
+                        
+                        // labeledNode = true; // -- REMOVED
+                    }
+                    // --- END MODIFIED CODE ---
+                }
+                ctx.globalAlpha = 1.0; // Reset alpha
+                // --- END ADDED CODE ---
+
+                // Create Path2D objects to draw the waves efficiently
+                const path1 = new Path2D(); // Wave 1 (Blue) -> Right
+                const path2 = new Path2D(); // Wave 2 (Red)  -> Left
+                const pathSum = new Path2D(); // Sum Wave (White)
+
+                // --- MODIFIED CODE START ---
+
+                // Calculate starting points
+                const y1_start = calculateY_right(0, time, 0);      // Wave 1 (right)
+                const y2_start = calculateY_left(0, time, phase);   // Wave 2 (left)
+                const ySum_start = y1_start + y2_start;             // Sum at x=0
+                
+                // --- MODIFIED CODE END ---
+
+                path1.moveTo(0, yCenter + y1_start);
+                path2.moveTo(0, yCenter + y2_start);
+                pathSum.moveTo(0, yCenter + ySum_start);
+
+                const beadPositions1 = [];
+                const beadPositions2 = [];
+                const beadPositionsSum = []; // Array for sum wave beads
+                const segmentLength = 15;
+
+                // Loop across the canvas to calculate all points
+                for (let x = 1; x < canvas.width; x++) {
+                    
+                    // --- MODIFIED CODE START ---
+                    const y1 = calculateY_right(x, time, 0);     // Wave 1 (right)
+                    const y2 = calculateY_left(x, time, phase);  // Wave 2 (left)
+                    const ySum = y1 + y2;                        // Sum wave
+                    // --- MODIFIED CODE END ---
+
+                    path1.lineTo(x, yCenter + y1);
+                    path2.lineTo(x, yCenter + y2);
+                    pathSum.lineTo(x, yCenter + ySum);       // Add point to sum path
+
+                    // Store bead positions (every 'segmentLength' pixels)
+                    if (x % segmentLength === 0 && x > 0) {
+                        beadPositions1.push({ x: x, y: yCenter + y1 });   // Add bead for wave 1
+                        beadPositions2.push({ x: x, y: yCenter + y2 });   // Add bead for wave 2
+                        beadPositionsSum.push({ x: x, y: yCenter + ySum }); // Add bead for sum wave
+                    }
+                }
+
+                // --- 1. Draw Wave 1 (Blue) ---
+                ctx.strokeStyle = '#3b82f6'; // blue-500
+                ctx.lineWidth = 2; // Made thinner
+                ctx.globalAlpha = 0.6; // Make component waves transparent
+                ctx.shadowBlur = 0;
+                ctx.stroke(path1);
+
+                // --- 2. Draw Wave 2 (Red) ---
+                ctx.strokeStyle = '#ef4444'; // red-500
+                ctx.lineWidth = 2;
+                // globalAlpha is already 0.6
+                ctx.stroke(path2);
+
+                // --- 3. Draw Sum Wave (White) ---
+                ctx.strokeStyle = '#f5f5f5'; // neutral-100 (bright white)
+                ctx.lineWidth = 5; // Thicker line for emphasis
+                ctx.globalAlpha = 1.0; // Fully opaque
+                ctx.shadowColor = '#f5f5f5'; // White glow
+                ctx.shadowBlur = 8;
+                ctx.stroke(pathSum);
+                ctx.shadowBlur = 0; // Reset shadow for beads
+
+                // --- 4. Draw Beads on Wave 1 (Blue) ---
+                ctx.fillStyle = '#3b82f6'; // blue-500
+                ctx.globalAlpha = 0.6; // Match wave transparency
+                
+                // Draw the first bead (at x=0)
+                ctx.beginPath();
+                ctx.arc(0, yCenter + y1_start, 4, 0, Math.PI * 2); // Radius 4
+                ctx.fill();
+
+                // Draw the rest of the beads
+                for (const pos of beadPositions1) {
+                    ctx.beginPath();
+                    ctx.arc(pos.x, pos.y, 4, 0, Math.PI * 2); // Radius 4
+                    ctx.fill();
+                }
+
+                // --- 5. Draw Beads on Wave 2 (Red) ---
+                ctx.fillStyle = '#ef4444'; // red-500
+                // Alpha is already 0.6 from above
+                
+                // Draw the first bead (at x=0)
+                ctx.beginPath();
+                ctx.arc(0, yCenter + y2_start, 4, 0, Math.PI * 2); // Radius 4
+                ctx.fill();
+
+                // Draw the rest of the beads
+                for (const pos of beadPositions2) {
+                    ctx.beginPath();
+                    ctx.arc(pos.x, pos.y, 4, 0, Math.PI * 2); // Radius 4
+                    ctx.fill();
+                }
+                
+                // --- 6. Draw Beads on Sum Wave (White) ---
+                ctx.fillStyle = '#f5f5f5'; // white
+                ctx.globalAlpha = 1.0; // Fully opaque
+                
+                // Draw the first bead (at x=0)
+                ctx.beginPath();
+                ctx.arc(0, yCenter + ySum_start, 5, 0, Math.PI * 2); // Radius 5 (larger)
+                ctx.fill();
+
+                // Draw the rest of the beads
+                for (const pos of beadPositionsSum) {
+                    ctx.beginPath();
+                    ctx.arc(pos.x, pos.y, 5, 0, Math.PI * 2); // Radius 5
+                    ctx.fill();
+                }
+                
+                ctx.globalAlpha = 1.0; // Reset alpha
+            }
+
+            // Animation loop
+            function animate() {
+                
+                // --- MODIFIED CODE: Only update if not paused ---
+                if (!isPaused) {
+                    // Update time to make the wave move
+                    time += 1;
+                    // Draw the wave
+                    drawWave();
+                }
+                // --- END MODIFIED CODE ---
+
+                // Request the next animation frame (always, to keep the loop alive)
+                requestAnimationFrame(animate);
+            }
+
+            // Initial setup
+            resizeCanvas();
+            // updateReadouts(); // Removed
+            
+            // Start the animation
+            animate();
+
+            // --- ADDED CODE: Pause Button Logic ---
+            const pauseButton = document.getElementById('pauseButton');
+            pauseButton.addEventListener('click', () => {
+                isPaused = !isPaused; // Toggle the pause state
+                if (isPaused) {
+                    pauseButton.textContent = 'Play';
+                    pauseButton.classList.remove('bg-teal-500', 'hover:bg-teal-600');
+                    pauseButton.classList.add('bg-green-500', 'hover:bg-green-600');
+                } else {
+                    pauseButton.textContent = 'Pause';
+                    pauseButton.classList.remove('bg-green-500', 'hover:bg-green-600');
+                    pauseButton.classList.add('bg-teal-500', 'hover:bg-teal-600');
+                }
+            });
+            // --- END ADDED CODE ---
+
+            // Resize canvas on window resize
+            window.addEventListener('resize', resizeCanvas);
+        };
+    </script>
+</body>
+</html>
