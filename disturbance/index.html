@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -19,16 +18,16 @@
         canvas:active {
             cursor: grabbing;
         }
-        /* Custom styles for range sliders */
+        /* Custom styles for range sliders (kept for consistency even if not used here) */
         input[type="range"] {
             -webkit-appearance: none;
             appearance: none;
             width: 100%;
-            height: 8px;
-            border-radius: 5px;
+            height: 6px; /* Slightly thinner for compact look */
+            border-radius: 3px;
             background: #4a5568; /* gray-700 */
             outline: none;
-            opacity: 0.7;
+            opacity: 0.8;
             transition: opacity .2s;
         }
         input[type="range"]:hover {
@@ -37,51 +36,50 @@
         input[type="range"]::-webkit-slider-thumb {
             -webkit-appearance: none;
             appearance: none;
-            width: 20px;
-            height: 20px;
+            width: 18px; /* Slightly smaller thumb */
+            height: 18px;
             border-radius: 50%;
             background: #38b2ac; /* teal-500 */
             cursor: pointer;
         }
         input[type="range"]::-moz-range-thumb {
-            width: 20px;
-            height: 20px;
+            width: 18px;
+            height: 18px;
             border-radius: 50%;
             background: #38b2ac; /* teal-500 */
             cursor: pointer;
         }
     </style>
 </head>
-<body class="bg-gray-900 text-gray-100 flex flex-col items-center justify-center min-h-screen p-4">
+<body class="bg-gray-900 text-gray-100 flex flex-col items-center justify-center min-h-screen p-2 md:p-4">
 
-    <h1 class="text-3xl md:text-4xl font-bold mb-6 text-teal-300">Wave on a String Simulator</h1>
-    <p class="text-gray-400 mb-4 -mt-2">Click and drag the left end of the string to create a wave.</p>
+    <!-- Reduced bottom margin and text size slightly for vertical compaction -->
+    <h1 class="text-2xl md:text-3xl font-bold mb-3 text-teal-300">Wave on a String Simulator</h1>
+    <p class="text-gray-400 mb-3 -mt-2 text-sm md:text-base text-center">Click and drag the left end of the string to create a wave.</p>
 
-    <!-- Canvas for the wave visualization -->
-    <canvas id="waveCanvas" class="bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl h-64 md:h-96 mb-6"></canvas>
-
-    <!-- Controls removed -->
+    <!-- Canvas: Reduced height to h-48 (mobile) and h-64 (desktop), reduced bottom margin -->
+    <canvas id="waveCanvas" class="bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl h-48 md:h-64 mb-3"></canvas>
 
     <script>
         window.onload = function() {
             const canvas = document.getElementById('waveCanvas');
             const ctx = canvas.getContext('2d');
 
-            // Get control elements (slider removed)
-
             // Wave parameters
-            let speed = 2; // Set a fixed speed (was 2, trying 4 for a better default)
-            const padding = 50; // --- Increased padding from 20 to 50 ---
+            let speed = 2; // Fixed speed 
+            const padding = 50; 
             
             // State for manual dragging
             let isDragging = false;
             let mouseY = 0;
             
             // This array will store the history of the source's (left end) y-position
-            // It acts as a delay line, and its contents are "propagated" along the string
             let sourceHistory = [];
 
-            // Update parameters from sliders (slider listener removed)
+            // Timing variables for the fixed timestep frame rate fix
+            let lastTimestamp = performance.now();
+            let accumulator = 0;
+            const fixedTimeStep = 1000 / 60; // Exactly 60 updates per second
 
             // Helper function to get mouse/touch position relative to canvas
             function getEventPosition(evt) {
@@ -89,11 +87,9 @@
                 let clientX, clientY;
 
                 if (evt.touches) {
-                    // Use the first touch point
                     clientX = evt.touches[0].clientX;
                     clientY = evt.touches[0].clientY;
                 } else {
-                    // Use mouse event
                     clientX = evt.clientX;
                     clientY = evt.clientY;
                 }
@@ -104,14 +100,11 @@
             }
 
             // --- Mouse/Touch Event Listeners ---
-
             function onDragStart(evt) {
-                // Prevent default touch behaviors like scrolling
                 if (evt.touches) evt.preventDefault(); 
                 
                 const pos = getEventPosition(evt);
                 // Only start dragging if the user clicks near the handle
-                // Handle is at `padding`, so check a small area around it
                 if (pos.x < padding + 20 && pos.x > padding - 20) {
                     isDragging = true;
                     mouseY = pos.y;
@@ -122,7 +115,6 @@
             function onDragMove(evt) {
                 if (isDragging) {
                     if (evt.touches) evt.preventDefault();
-                    
                     const pos = getEventPosition(evt);
                     mouseY = pos.y;
                 }
@@ -133,28 +125,22 @@
                 canvas.style.cursor = 'grab';
             }
 
-            // Mouse events
             canvas.addEventListener('mousedown', onDragStart);
             canvas.addEventListener('mousemove', onDragMove);
             canvas.addEventListener('mouseup', onDragEnd);
             canvas.addEventListener('mouseleave', onDragEnd);
 
-            // Touch events
             canvas.addEventListener('touchstart', onDragStart);
             canvas.addEventListener('touchmove', onDragMove);
             canvas.addEventListener('touchend', onDragEnd);
             canvas.addEventListener('touchcancel', onDragEnd);
 
-
             // Function to resize the canvas
             function resizeCanvas() {
-                // Set canvas size to its CSS-defined size
                 canvas.width = canvas.clientWidth;
                 canvas.height = canvas.clientHeight;
                 
                 // (Re)initialize the source history array to match the visible wave width
-                // We use a history buffer that's large enough to capture the wave
-                // It's based on width / speed, with some padding.
                 const waveWidth = canvas.width - 2 * padding;
                 const historySize = Math.ceil(waveWidth / (speed < 1 ? 1 : speed)) + 50;
                 sourceHistory = new Array(historySize).fill(0);
@@ -163,7 +149,6 @@
 
             // Function to draw the wave
             function drawWave() {
-                // Clear the canvas
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
 
                 const yCenter = canvas.height / 2;
@@ -180,19 +165,14 @@
 
                 // Draw the wave across the canvas width, respecting padding
                 for (let x = padding + 1; x < canvas.width - padding; x++) {
-                    // Read from the history array.
-                    // 'speed' stretches or compresses the wave.
-                    // The index is based on the distance from the start (padding)
                     const historyIndex = Math.floor((x - padding) / speed);
-                    
-                    if (historyIndex >= sourceHistory.length) break; // Stop if we run out of history
+                    if (historyIndex >= sourceHistory.length) break;
 
                     const y = yCenter + sourceHistory[historyIndex];
                     ctx.lineTo(x, y);
                 }
-                ctx.stroke(); // Render the line
+                ctx.stroke(); 
 
-                
                 // --- 2. Draw the "beads" (segment markers) on top ---
                 const segmentLength = 15;
                 ctx.fillStyle = '#a0aec0'; // gray-500
@@ -205,7 +185,7 @@
 
                     const y = yCenter + sourceHistory[historyIndex];
                     ctx.beginPath();
-                    ctx.arc(x, y, 5, 0, Math.PI * 2); // 5px radius beads
+                    ctx.arc(x, y, 4, 0, Math.PI * 2); // 4px radius beads (slightly smaller for compact view)
                     ctx.fill();
                 }
 
@@ -214,38 +194,51 @@
                 ctx.shadowColor = isDragging ? '#f6e05e' : '#38b2ac';
                 ctx.shadowBlur = 8;
                 ctx.beginPath();
-                ctx.arc(padding, yCenter + sourceHistory[0], 8, 0, Math.PI * 2); // Larger handle at padding
+                ctx.arc(padding, yCenter + sourceHistory[0], 7, 0, Math.PI * 2); // Handle at padding
                 ctx.fill();
                 
                 // Reset shadow for next frame
                 ctx.shadowBlur = 0;
             }
 
-            // Animation loop
-            function animate() {
-                // Determine the new y-position for the source (x=0)
-                let newSourceY = 0;
-                if (isDragging) {
-                    // Set position based on mouse, relative to center
-                    newSourceY = mouseY - (canvas.height / 2);
-                }
+            // Animation loop using fixed timestep for consistent physics speed
+            function animate(timestamp) {
+                if (!timestamp) timestamp = performance.now();
                 
-                // Update the history:
-                sourceHistory.pop(); // Remove the oldest value
-                sourceHistory.unshift(newSourceY); // Add the newest value
+                let deltaTime = timestamp - lastTimestamp;
+                lastTimestamp = timestamp;
 
-                // Draw the wave
+                // Cap deltaTime to prevent "spiral of death" if tab is inactive
+                if (deltaTime > 250) deltaTime = 250;
+
+                accumulator += deltaTime;
+
+                // Update the physics/history array exactly 60 times per second
+                while (accumulator >= fixedTimeStep) {
+                    let newSourceY = 0;
+                    if (isDragging) {
+                        // Limit dragging bounds so it doesn't clip outside canvas
+                        newSourceY = mouseY - (canvas.height / 2);
+                        const maxDrag = (canvas.height / 2) - 15;
+                        if (newSourceY > maxDrag) newSourceY = maxDrag;
+                        if (newSourceY < -maxDrag) newSourceY = -maxDrag;
+                    }
+                    
+                    sourceHistory.pop(); 
+                    sourceHistory.unshift(newSourceY); 
+
+                    accumulator -= fixedTimeStep;
+                }
+
                 drawWave();
-
-                // Request the next animation frame
                 requestAnimationFrame(animate);
             }
 
             // Initial setup
             resizeCanvas();
             
-            // Start the animation
-            animate();
+            // Pass the initial function reference so timestamp is provided by the browser
+            requestAnimationFrame(animate);
 
             // Resize canvas on window resize
             window.addEventListener('resize', resizeCanvas);
