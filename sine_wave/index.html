@@ -16,11 +16,11 @@
             -webkit-appearance: none;
             appearance: none;
             width: 100%;
-            height: 8px;
-            border-radius: 5px;
+            height: 6px; /* Slightly thinner for compact look */
+            border-radius: 3px;
             background: #4a5568; /* gray-700 */
             outline: none;
-            opacity: 0.7;
+            opacity: 0.8;
             transition: opacity .2s;
         }
         input[type="range"]:hover {
@@ -29,44 +29,46 @@
         input[type="range"]::-webkit-slider-thumb {
             -webkit-appearance: none;
             appearance: none;
-            width: 20px;
-            height: 20px;
+            width: 18px; /* Slightly smaller thumb */
+            height: 18px;
             border-radius: 50%;
             background: #38b2ac; /* teal-500 */
             cursor: pointer;
         }
         input[type="range"]::-moz-range-thumb {
-            width: 20px;
-            height: 20px;
+            width: 18px;
+            height: 18px;
             border-radius: 50%;
             background: #38b2ac; /* teal-500 */
             cursor: pointer;
         }
     </style>
 </head>
-<body class="bg-gray-900 text-gray-100 flex flex-col items-center justify-center min-h-screen p-4">
+<body class="bg-gray-900 text-gray-100 flex flex-col items-center justify-center min-h-screen p-2 md:p-4">
 
-    <h1 class="text-3xl md:text-4xl font-bold mb-6 text-teal-300">Sinusoidal wave</h1>
+    <!-- Reduced bottom margin and text size slightly for vertical compaction -->
+    <h1 class="text-2xl md:text-3xl font-bold mb-3 text-teal-300">Sinusoidal wave</h1>
 
-    <!-- Canvas for the wave visualization -->
-    <canvas id="waveCanvas" class="bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl h-64 md:h-96 mb-6"></canvas>
+    <!-- Canvas: Reduced height to h-48 (mobile) and h-64 (desktop), reduced bottom margin -->
+    <canvas id="waveCanvas" class="bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl h-48 md:h-64 mb-3"></canvas>
 
-    <!-- Controls for wave parameters -->
-    <div class="w-full max-w-xl bg-gray-800 p-6 rounded-lg shadow-xl space-y-4">
+    <!-- Controls: Flattened to a single horizontal row for desktop, reduced padding -->
+    <div class="w-full max-w-4xl bg-gray-800 p-3 md:p-4 rounded-lg shadow-xl flex flex-col md:flex-row items-center gap-4 md:gap-6">
         
-        <!-- Centered controls -->
-        <div class="space-y-4">
-            <!-- Amplitude Slider -->
-            <div class="grid grid-cols-3 items-center gap-4">
-                <label for="amplitude" class="text-lg font-medium text-teal-400">Amplitude</label>
-                <input type="range" id="amplitude" min="10" max="150" value="50" class="col-span-2">
-            </div>
+        <!-- Amplitude Slider Container -->
+        <div class="flex flex-1 items-center gap-3 w-full">
+            <label for="amplitude" class="text-base md:text-lg font-medium text-teal-400 whitespace-nowrap">
+                Amplitude
+            </label>
+            <input type="range" id="amplitude" min="10" max="150" value="50" class="flex-1 w-full">
+        </div>
 
-            <!-- Frequency Slider -->
-            <div class="grid grid-cols-3 items-center gap-4">
-                <label for="frequency" class="text-lg font-medium text-teal-400">Frequency</label>
-                <input type="range" id="frequency" min="0.01" max="0.2" value="0.05" step="0.005" class="col-span-2">
-            </div>
+        <!-- Frequency Slider Container -->
+        <div class="flex flex-1 items-center gap-3 w-full">
+            <label for="frequency" class="text-base md:text-lg font-medium text-teal-400 whitespace-nowrap">
+                Frequency
+            </label>
+            <input type="range" id="frequency" min="0.01" max="0.2" value="0.05" step="0.005" class="flex-1 w-full">
         </div>
 
     </div>
@@ -81,39 +83,42 @@
             const frequencySlider = document.getElementById('frequency');
 
             // --- Corrected Physics Parameters ---
-            // Propagation speed is constant for the medium (the string)
-            const propSpeed = 4; // (pixels/frame) - Tuned for good visual range
+            const propSpeed = 4; // (pixels/frame)
             
             // Wave parameters controlled by user
             let amplitude = parseFloat(amplitudeSlider.value);
             let frequency = parseFloat(frequencySlider.value); // This is omega (angular frequency)
-            // Damping and end condition are removed, defaulting to no damping, no end.
             
             // Calculated wave parameter
             let k = frequency / propSpeed; // k (wavenumber) = omega / v
             
-            let time = 0; // This is the 't' in sin(kx - wt), incremented each frame
+            let time = 0;
 
             // Update parameters from controls
             amplitudeSlider.addEventListener('input', (e) => amplitude = parseFloat(e.target.value));
             
-            // Special handling for frequency: must recalculate k
             frequencySlider.addEventListener('input', (e) => {
                 frequency = parseFloat(e.target.value);
-                // Recalculate k (wavenumber) based on new frequency
                 k = frequency / propSpeed; 
             });
 
             // Function to resize the canvas
             function resizeCanvas() {
-                // Set canvas size to its CSS-defined size
                 canvas.width = canvas.clientWidth;
                 canvas.height = canvas.clientHeight;
+                
+                // Dynamically adjust maximum amplitude slider limit to prevent 
+                // clipping if the window is resized vertically too small.
+                const maxAmp = (canvas.height / 2) - 15;
+                amplitudeSlider.max = maxAmp;
+                if (amplitude > maxAmp) {
+                    amplitude = maxAmp;
+                    amplitudeSlider.value = maxAmp;
+                }
             }
 
             // Function to draw the wave
             function drawWave() {
-                // Clear the canvas
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
 
                 const yCenter = canvas.height / 2;
@@ -137,40 +142,28 @@
 
                 ctx.beginPath();
                 
-                // Use k (wavenumber) and frequency (omega)
-                // y(x,t) = A * sin(k*x - omega*t)
-                // Here, 'frequency' is omega, and 'time' is t.
                 let yStart = amplitude * Math.sin(k * 0 - frequency * time);
                 ctx.moveTo(0, yCenter + yStart); 
 
                 // Draw the wave across the canvas width
                 for (let x = 1; x < canvas.width; x++) {
-                    // Calculate the main wave
                     let y = Math.sin(k * x - frequency * time);
-                    
-                    // 'none' condition just uses the simple wave
                     let yFinal = y * amplitude;
-
                     ctx.lineTo(x, yCenter + yFinal);
                 }
 
-                // Render the line
                 ctx.stroke();
-                
-                // Reset shadow before drawing beads
-                ctx.shadowBlur = 0;
+                ctx.shadowBlur = 0; // Reset shadow before drawing beads
 
                 // --- 3. Draw the "beads" (segment markers) on top ---
                 const segmentLength = 15; 
-                ctx.fillStyle = '#a0aec0'; // gray-500
-                let beadIndex = 0; // Counter for the beads
+                let beadIndex = 0; 
 
                 for (let x = 0; x <= canvas.width; x += segmentLength) {
-                    // Recalculate y position for beads to match the line
                     let y = Math.sin(k * x - frequency * time);
                     let yFinal = y * amplitude;
                     
-                    // --- Change Color for the 30th and 50th elements ---
+                    // Change Color for the 30th and 50th elements
                     if (beadIndex === 30) {
                         ctx.fillStyle = '#3b82f6'; // Tailwind blue-500
                     } else if (beadIndex === 50) {
@@ -179,33 +172,28 @@
                         ctx.fillStyle = '#a0aec0'; // gray-500
                     }
                     
-                    // Draw the bead
                     ctx.beginPath();
                     ctx.arc(x, yCenter + yFinal, 5, 0, Math.PI * 2); // 5px radius beads
                     ctx.fill();
 
-                    beadIndex++; // Increment the bead counter
+                    beadIndex++; 
                 }
             }
 
-            // Animation loop
-            function animate() {
-                // Update time to make the wave move
-                // We increment 't' by 1 each frame. 'frequency' is omega.
-                time += 1;
+            // Animation loop using timestamp to maintain constant speed regardless of framerate
+            function animate(timestamp) {
+                if (!timestamp) timestamp = performance.now();
+                time = timestamp * 0.06;
 
-                // Draw the wave
                 drawWave();
-
-                // Request the next animation frame
                 requestAnimationFrame(animate);
             }
 
             // Initial setup
             resizeCanvas();
             
-            // Start the animation
-            animate();
+            // Pass the initial function reference so timestamp is provided by the browser
+            requestAnimationFrame(animate);
 
             // Resize canvas on window resize
             window.addEventListener('resize', resizeCanvas);
